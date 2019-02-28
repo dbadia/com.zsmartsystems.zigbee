@@ -119,10 +119,11 @@ public class ZigBeeCodeGenerator {
         new ZigBeeZclConstantGenerator(zclClusters, generatedDate, zclTypes);
         new ZigBeeZclStructureGenerator(zclClusters, generatedDate, zclTypes);
         new ZigBeeZclClusterTypeGenerator(zclClusters, generatedDate, zclTypes);
-        new ZigBeeZclCommandTypeGenerator(zclClusters, generatedDate, zclTypes);
         new ZigBeeZclDataTypeGenerator(dataTypes, generatedDate);
 
         new ZigBeeZclCommandGenerator(zdoClusters, generatedDate, zclTypes);
+
+        new ZigBeeZdoClusterGenerator(zdoClusters, generatedDate, zclTypes);
 
         zclParser = new ZigBeeXmlParser();
         zclParser.addFile("src/main/resources/zigbee_constants.xml");
