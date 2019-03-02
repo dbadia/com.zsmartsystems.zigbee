@@ -463,7 +463,7 @@ public class ZigBeeDongleTelegesis
         }
         frameHandler.removeEventListener(this);
         frameHandler.setClosing();
-        zigbeeTransportReceive.setNetworkState(ZigBeeTransportState.OFFLINE);
+        zigbeeTransportReceive.setTransportState(ZigBeeTransportState.OFFLINE);
         serialPort.close();
         frameHandler.close();
         logger.debug("Telegesis dongle shutdown.");
@@ -742,11 +742,11 @@ public class ZigBeeDongleTelegesis
 
         // Handle link changes and notify framework or just reset link with dongle?
         if (event instanceof TelegesisNetworkLeftEvent | event instanceof TelegesisNetworkLostEvent) {
-            zigbeeTransportReceive.setNetworkState(ZigBeeTransportState.OFFLINE);
+            zigbeeTransportReceive.setTransportState(ZigBeeTransportState.OFFLINE);
             return;
         }
         if (event instanceof TelegesisNetworkJoinedEvent) {
-            zigbeeTransportReceive.setNetworkState(ZigBeeTransportState.ONLINE);
+            zigbeeTransportReceive.setTransportState(ZigBeeTransportState.ONLINE);
             return;
         }
 
@@ -867,7 +867,7 @@ public class ZigBeeDongleTelegesis
             return false;
         }
 
-        zigbeeTransportReceive.setNetworkState(ZigBeeTransportState.OFFLINE);
+        zigbeeTransportReceive.setTransportState(ZigBeeTransportState.OFFLINE);
         callback.firmwareUpdateCallback(ZigBeeTransportFirmwareStatus.FIRMWARE_UPDATE_STARTED);
 
         // Send the bootload command, but ignore the response since there doesn't seem to be one
@@ -1042,7 +1042,7 @@ public class ZigBeeDongleTelegesis
         if (!startupComplete) {
             return;
         }
-        zigbeeTransportReceive.setNetworkState(state ? ZigBeeTransportState.ONLINE : ZigBeeTransportState.OFFLINE);
+        zigbeeTransportReceive.setTransportState(state ? ZigBeeTransportState.ONLINE : ZigBeeTransportState.OFFLINE);
     }
 
 }

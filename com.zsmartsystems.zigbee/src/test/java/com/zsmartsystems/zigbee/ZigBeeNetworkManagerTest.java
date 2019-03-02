@@ -69,7 +69,7 @@ public class ZigBeeNetworkManagerTest implements ZigBeeNetworkNodeListener, ZigB
     private ZigBeeNetworkNodeListener mockedNodeListener;
     private List<ZigBeeNode> nodeNodeListenerCapture;
     private ArgumentCaptor<ZigBeeApsFrame> mockedApsFrameListener;
-    private List<ZigBeeTransportState> networkStateListenerCapture;
+    private List<ZigBeeNetworkState> networkStateListenerCapture;
 
     private ZigBeeTransportTransmit mockedTransport;
     private ZigBeeNetworkStateListener mockedStateListener;
@@ -96,7 +96,7 @@ public class ZigBeeNetworkManagerTest implements ZigBeeNetworkNodeListener, ZigB
         node2.setNetworkAddress(5678);
 
         // Add a node and make sure it's in the list
-        setField(ZigBeeNetworkManager.class, networkManager, "networkState", ZigBeeTransportState.ONLINE);
+        setField(ZigBeeNetworkManager.class, networkManager, "networkState", ZigBeeNetworkState.ONLINE);
 
         networkManager.addNode(node1);
         assertEquals(1, networkManager.getNodes().size());
@@ -285,16 +285,16 @@ public class ZigBeeNetworkManagerTest implements ZigBeeNetworkNodeListener, ZigB
         Mockito.when(transport.getIeeeAddress()).thenReturn(new IeeeAddress("1234567890ABCDEF"));
 
         // Default state is uninitialised
-        assertEquals(ZigBeeTransportState.UNINITIALISED, manager.getNetworkState());
+        assertEquals(ZigBeeNetworkState.UNINITIALISED, manager.getNetworkState());
 
         // This will be ignored as an illegal state transition
-        manager.setNetworkState(ZigBeeTransportState.ONLINE);
+        manager.setTransportState(ZigBeeTransportState.ONLINE);
 
-        manager.setNetworkState(ZigBeeTransportState.INITIALISING);
-        Mockito.verify(stateListener, Mockito.timeout(TIMEOUT)).networkStateUpdated(ZigBeeTransportState.INITIALISING);
+        manager.setTransportState(ZigBeeTransportState.INITIALISING);
+        Mockito.verify(stateListener, Mockito.timeout(TIMEOUT)).networkStateUpdated(ZigBeeNetworkState.INITIALISING);
 
-        manager.setNetworkState(ZigBeeTransportState.ONLINE);
-        Mockito.verify(stateListener, Mockito.timeout(TIMEOUT)).networkStateUpdated(ZigBeeTransportState.ONLINE);
+        manager.setTransportState(ZigBeeTransportState.ONLINE);
+        Mockito.verify(stateListener, Mockito.timeout(TIMEOUT)).networkStateUpdated(ZigBeeNetworkState.ONLINE);
 
         assertEquals(Integer.valueOf(123), manager.getLocalNwkAddress());
         assertEquals(new IeeeAddress("1234567890ABCDEF"), manager.getLocalIeeeAddress());
@@ -412,8 +412,8 @@ public class ZigBeeNetworkManagerTest implements ZigBeeNetworkNodeListener, ZigB
         mockedTransport = Mockito.mock(ZigBeeTransportTransmit.class);
         mockedStateListener = Mockito.mock(ZigBeeNetworkStateListener.class);
         mockedNodeListener = Mockito.mock(ZigBeeNetworkNodeListener.class);
-        nodeNodeListenerCapture = new ArrayList<ZigBeeNode>();
-        networkStateListenerCapture = new ArrayList<ZigBeeTransportState>();
+        nodeNodeListenerCapture = new ArrayList<>();
+        networkStateListenerCapture = new ArrayList<>();
 
         final ZigBeeNetworkManager networkManager = new ZigBeeNetworkManager(mockedTransport);
 
@@ -455,7 +455,7 @@ public class ZigBeeNetworkManagerTest implements ZigBeeNetworkNodeListener, ZigB
     }
 
     @Override
-    public void networkStateUpdated(ZigBeeTransportState state) {
+    public void networkStateUpdated(ZigBeeNetworkState state) {
         networkStateListenerCapture.add(state);
     }
 
@@ -477,6 +477,15 @@ public class ZigBeeNetworkManagerTest implements ZigBeeNetworkNodeListener, ZigB
     @Override
     public void commandReceived(ZigBeeCommand command) {
         commandListenerCapture.add(command);
+    }
+
+    private Callable<Integer> stateListenerUpdated() {
+        return new Callable<Integer>() {
+            @Override
+            public Integer call() throws Exception {
+                return networkStateListenerCapture.size(); // The condition that must be fulfilled
+            }
+        };
     }
 
     private Callable<Integer> commandListenerUpdated() {
@@ -609,19 +618,25 @@ public class ZigBeeNetworkManagerTest implements ZigBeeNetworkNodeListener, ZigB
         Mockito.when(transport.initialize()).thenReturn(ZigBeeStatus.SUCCESS);
         Mockito.when(transport.getNwkAddress()).thenReturn(Integer.valueOf(123));
         Mockito.when(transport.getIeeeAddress()).thenReturn(new IeeeAddress("1234567890ABCDEF"));
+
+        ZigBeeNetworkStateSerializer networkStateSerializer = Mockito.mock(ZigBeeNetworkStateSerializer.class);
         manager = new ZigBeeNetworkManager(transport);
+        manager.setNetworkStateSerializer(networkStateSerializer);
 
         assertEquals(ZigBeeStatus.SUCCESS, manager.initialize());
+        Mockito.verify(networkStateSerializer, Mockito.times(1)).deserialize(manager);
 
         ZigBeeNode node = manager.getNode(new IeeeAddress("1234567890ABCDEF"));
         assertNotNull(node);
         assertEquals(Integer.valueOf(123), node.getNetworkAddress());
 
-        TestUtilities.setField(ZigBeeNetworkManager.class, manager, "networkState", ZigBeeTransportState.INITIALISING);
+        TestUtilities.setField(ZigBeeNetworkManager.class, manager, "networkState", ZigBeeNetworkState.INITIALISING);
         assertEquals(ZigBeeStatus.INVALID_STATE, manager.initialize());
 
         manager.shutdown();
         Mockito.verify(transport, Mockito.times(1)).shutdown();
+
+        Mockito.verify(networkStateSerializer, Mockito.times(1)).serialize(manager);
     }
 
     @Test
@@ -632,7 +647,7 @@ public class ZigBeeNetworkManagerTest implements ZigBeeNetworkNodeListener, ZigB
 
         assertEquals(ZigBeeStatus.INVALID_STATE, manager.startup(true));
 
-        TestUtilities.setField(ZigBeeNetworkManager.class, manager, "networkState", ZigBeeTransportState.INITIALISING);
+        TestUtilities.setField(ZigBeeNetworkManager.class, manager, "networkState", ZigBeeNetworkState.INITIALISING);
 
         assertEquals(transport, manager.getZigBeeTransport());
 
@@ -642,9 +657,18 @@ public class ZigBeeNetworkManagerTest implements ZigBeeNetworkNodeListener, ZigB
         assertEquals(ZigBeeStatus.COMMUNICATION_ERROR, manager.startup(false));
         Mockito.verify(transport, Mockito.times(1)).startup(false);
 
-        TestUtilities.setField(ZigBeeNetworkManager.class, manager, "networkState", ZigBeeTransportState.INITIALISING);
+        TestUtilities.setField(ZigBeeNetworkManager.class, manager, "networkState", ZigBeeNetworkState.INITIALISING);
+        manager.setTransportState(ZigBeeTransportState.OFFLINE);
+        assertEquals(ZigBeeNetworkState.INITIALISING, manager.getNetworkState());
+
         assertEquals(ZigBeeStatus.SUCCESS, manager.startup(true));
         Mockito.verify(transport, Mockito.times(1)).startup(true);
+
+        Awaitility.await().until(() -> stateListenerUpdated());
+        assertEquals(ZigBeeNetworkState.ONLINE, manager.getNetworkState());
+        manager.setTransportState(ZigBeeTransportState.OFFLINE);
+        Awaitility.await().until(() -> stateListenerUpdated());
+        assertEquals(ZigBeeNetworkState.OFFLINE, manager.getNetworkState());
     }
 
     @Test
@@ -860,7 +884,7 @@ public class ZigBeeNetworkManagerTest implements ZigBeeNetworkNodeListener, ZigB
         networkManager.executeTask(Mockito.mock(Runnable.class));
         assertNull(networkManager.rescheduleTask(Mockito.mock(ScheduledFuture.class), Mockito.mock(Runnable.class), 0));
 
-        TestUtilities.setField(ZigBeeNetworkManager.class, networkManager, "networkState", ZigBeeTransportState.ONLINE);
+        TestUtilities.setField(ZigBeeNetworkManager.class, networkManager, "networkState", ZigBeeNetworkState.ONLINE);
 
         networkManager.scheduleTask(Mockito.mock(Runnable.class), 0, 0);
         Mockito.verify(scheduler, Mockito.times(2)).schedule(ArgumentMatchers.any(Runnable.class),
