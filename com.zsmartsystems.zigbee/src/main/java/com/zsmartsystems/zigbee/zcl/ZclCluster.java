@@ -153,6 +153,8 @@ public abstract class ZclCluster {
         this.clusterId = clusterId;
         this.clusterName = clusterName;
         this.normalizer = new ZclAttributeNormalizer();
+
+        supportedAttributes.addAll(attributes.keySet());
     }
 
     /**
@@ -547,10 +549,6 @@ public abstract class ZclCluster {
      */
     public Set<Integer> getSupportedAttributes() {
         synchronized (supportedAttributes) {
-            if (supportedAttributes.size() == 0) {
-                return attributes.keySet();
-            }
-
             return supportedAttributes;
         }
     }
@@ -610,7 +608,8 @@ public abstract class ZclCluster {
 
                         DiscoverAttributesResponse response = (DiscoverAttributesResponse) result.getResponse();
                         complete = response.getDiscoveryComplete();
-                        if (response.getAttributeInformation() != null) {
+                        if (response.getAttributeInformation() != null
+                                && !response.getAttributeInformation().isEmpty()) {
                             attributes.addAll(response.getAttributeInformation());
                             index = Collections.max(attributes).getIdentifier() + 1;
                         }
